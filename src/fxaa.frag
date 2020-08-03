@@ -56,8 +56,7 @@ void main(){
 
 	// If the luma variation is lower that a threshold (or if we are in a really dark area), we are not on an edge, don't perform any AA.
 	if(lumaRange < max(EDGE_THRESHOLD_MIN,lumaMax*EDGE_THRESHOLD_MAX)){
-		// fragColor = vec4(colorCenter, 1.0);
-		fragColor = vec4(0., 0., 0.2, 1.0);
+		fragColor = vec4(colorCenter, 1.0);
 		return;
 	}
 
@@ -83,11 +82,6 @@ void main(){
 
 	// Is the local edge horizontal or vertical ?
 	bool isHorizontal = (edgeHorizontal >= edgeVertical);
-	if (isHorizontal){
-		// fragColor = vec4(colorCenter, 1.0);
-		fragColor = vec4(1., 1., 1, 1.0);
-		return;
-	}
 
 	// Choose the step size (one pixel) accordingly.
 	float stepLength = isHorizontal ? pixel_size.y : pixel_size.x;
