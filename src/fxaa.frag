@@ -1,11 +1,19 @@
-#version 400
+#version 450
 
-in INTERFACE {
+layout(location = 0) in INTERFACE {
 	vec2 uv; ///< UV coordinates.
-} In ;
+} In;
 
-layout(set = 0, binding = 0) uniform sampler2D screenTexture; ///< Image to filter.
-layout(set = 0, binding = 1) uniform vec2 inverseScreenSize; ///< Size of one-pixel in UV space.
+layout(set = 0, binding = 0) uniform texture2D t_screenTexture; ///< Image to filter.
+layout(set = 0, binding = 1) uniform Locals {
+    vec2 pixel_size; ///< Size of one-pixel in UV space.
+};
+
+layout(set = 1, binding = 0) uniform sampler s_screenTexture;
+
+// for some reason we need to have a separate sampler and texture, then bind the two
+#define screenTexture sampler2D(t_screenTexture, s_screenTexture)
+
 
 // Settings for FXAA.
 #define EDGE_THRESHOLD_MIN 0.0312
@@ -15,8 +23,7 @@ layout(set = 0, binding = 1) uniform vec2 inverseScreenSize; ///< Size of one-pi
 #define SUBPIXEL_QUALITY 0.75
 
 // Output: the fragment color
-layout(location = 0) out vec3 fragColor; ///< Color.
-
+layout(location = 0) out vec4 fragColor; ///< Color.
 
 /** Evalute the luma value in perceptual space for a given RGB color in linear space.
 \param rgb the input RGB color
@@ -29,17 +36,16 @@ float rgb2luma(vec3 rgb){
 /** Performs FXAA post-process anti-aliasing as described in the Nvidia FXAA white paper and the associated shader code.
 */
 void main(){
-
 	vec3 colorCenter = texture(screenTexture,In.uv).rgb;
 
 	// Luma at the current fragment
 	float lumaCenter = rgb2luma(colorCenter);
 
 	// Luma at the four direct neighbours of the current fragment.
-	float lumaDown 	= rgb2luma(textureLodOffset(screenTexture,In.uv, 0.0,ivec2( 0,-1)).rgb);
-	float lumaUp 	= rgb2luma(textureLodOffset(screenTexture,In.uv, 0.0,ivec2( 0, 1)).rgb);
-	float lumaLeft 	= rgb2luma(textureLodOffset(screenTexture,In.uv, 0.0,ivec2(-1, 0)).rgb);
-	float lumaRight = rgb2luma(textureLodOffset(screenTexture,In.uv, 0.0,ivec2( 1, 0)).rgb);
+	float lumaDown  = rgb2luma(textureLodOffset(screenTexture, In.uv, 0.0, ivec2( 0,-1)).rgb);
+	float lumaUp    = rgb2luma(textureLodOffset(screenTexture, In.uv, 0.0, ivec2( 0, 1)).rgb);
+	float lumaLeft  = rgb2luma(textureLodOffset(screenTexture, In.uv, 0.0, ivec2(-1, 0)).rgb);
+	float lumaRight = rgb2luma(textureLodOffset(screenTexture, In.uv, 0.0, ivec2( 1, 0)).rgb);
 
 	// Find the maximum and minimum luma around the current fragment.
 	float lumaMin = min(lumaCenter,min(min(lumaDown,lumaUp),min(lumaLeft,lumaRight)));
@@ -50,15 +56,16 @@ void main(){
 
 	// If the luma variation is lower that a threshold (or if we are in a really dark area), we are not on an edge, don't perform any AA.
 	if(lumaRange < max(EDGE_THRESHOLD_MIN,lumaMax*EDGE_THRESHOLD_MAX)){
-		fragColor = colorCenter;
+		// fragColor = vec4(colorCenter, 1.0);
+		fragColor = vec4(0., 0., 0.2, 1.0);
 		return;
 	}
 
 	// Query the 4 remaining corners lumas.
-	float lumaDownLeft 	= rgb2luma(textureLodOffset(screenTexture,In.uv, 0.0,ivec2(-1,-1)).rgb);
-	float lumaUpRight 	= rgb2luma(textureLodOffset(screenTexture,In.uv, 0.0,ivec2( 1, 1)).rgb);
-	float lumaUpLeft 	= rgb2luma(textureLodOffset(screenTexture,In.uv, 0.0,ivec2(-1, 1)).rgb);
-	float lumaDownRight = rgb2luma(textureLodOffset(screenTexture,In.uv, 0.0,ivec2( 1,-1)).rgb);
+	float lumaDownLeft  = rgb2luma(textureLodOffset(screenTexture, In.uv, 0.0, ivec2(-1,-1)).rgb);
+	float lumaUpRight   = rgb2luma(textureLodOffset(screenTexture, In.uv, 0.0, ivec2( 1, 1)).rgb);
+	float lumaUpLeft    = rgb2luma(textureLodOffset(screenTexture, In.uv, 0.0, ivec2(-1, 1)).rgb);
+	float lumaDownRight = rgb2luma(textureLodOffset(screenTexture, In.uv, 0.0, ivec2( 1,-1)).rgb);
 
 	// Combine the four edges lumas (using intermediary variables for future computations with the same values).
 	float lumaDownUp = lumaDown + lumaUp;
@@ -76,9 +83,14 @@ void main(){
 
 	// Is the local edge horizontal or vertical ?
 	bool isHorizontal = (edgeHorizontal >= edgeVertical);
+	if (isHorizontal){
+		// fragColor = vec4(colorCenter, 1.0);
+		fragColor = vec4(1., 1., 1, 1.0);
+		return;
+	}
 
 	// Choose the step size (one pixel) accordingly.
-	float stepLength = isHorizontal ? inverseScreenSize.y : inverseScreenSize.x;
+	float stepLength = isHorizontal ? pixel_size.y : pixel_size.x;
 
 	// Select the two neighboring texels lumas in the opposite direction to the local edge.
 	float luma1 = isHorizontal ? lumaDown : lumaLeft;
@@ -91,7 +103,7 @@ void main(){
 	bool is1Steepest = abs(gradient1) >= abs(gradient2);
 
 	// Gradient in the corresponding direction, normalized.
-	float gradientScaled = 0.25*max(abs(gradient1),abs(gradient2));
+	float gradientScaled = 0.25 * max(abs(gradient1),abs(gradient2));
 
 	// Average luma in the correct direction.
 	float lumaLocalAverage = 0.0;
@@ -112,7 +124,7 @@ void main(){
 	}
 
 	// Compute offset (for each iteration step) in the right direction.
-	vec2 offset = isHorizontal ? vec2(inverseScreenSize.x,0.0) : vec2(0.0,inverseScreenSize.y);
+	vec2 offset = isHorizontal ? vec2(pixel_size.x,0.0) : vec2(0.0,pixel_size.y);
 	// Compute UVs to explore on each side of the edge, orthogonally. The QUALITY allows us to step faster.
 	vec2 uv1 = currentUv - offset * QUALITY(0);
 	vec2 uv2 = currentUv + offset * QUALITY(0);
@@ -218,5 +230,5 @@ void main(){
 
 	// Read the color at the new UV coordinates, and use it.
 	vec3 finalColor = textureLod(screenTexture,finalUv, 0.0).rgb;
-	fragColor = finalColor;
+    fragColor = vec4(finalColor, 1.0);
 }
