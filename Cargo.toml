@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 wgpu = { git = "https://github.com/gfx-rs/wgpu-rs/", rev = "8ac6145ce6b987a29df4d4f2f75fd6262ca67651" }
+env_logger = "0.7"
 winit = { version = "0.22.1", features = ["web-sys"] }
 futures = "0.3"
 log = "0.4"

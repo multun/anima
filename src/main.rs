@@ -20,8 +20,8 @@ impl Example {
         height: u32
     ) -> wgpu::Texture {
         let texture_extent = wgpu::Extent3d {
-            width: width,
-            height: height,
+            width,
+            height,
             depth: 1,
         };
 
@@ -93,5 +93,6 @@ impl framework::Example for Example {
 }
 
 fn main() {
+    env_logger::init();
     framework::run::<Example>("cube");
 }

@@ -75,8 +75,23 @@ pub struct BoxRenderer {
 }
 
 impl BoxRenderer {
-    fn generate_matrix(aspect_ratio: f32) -> cgmath::Matrix4<f32> {
-        let mx_projection = cgmath::perspective(cgmath::Deg(45f32), aspect_ratio, 1.0, 10.0);
+    fn generate_matrix(width: f32, height: f32) -> cgmath::Matrix4<f32> {
+        let zoom = 100.;
+
+        let fac = 1. / (2. * zoom);
+        let h_width = width * fac;
+        let h_height = height * fac;
+
+        let mx_projection: cgmath::Matrix4<f32> = cgmath::Ortho{
+            left: -h_width,
+            right: h_width,
+            bottom: -h_height,
+            top: h_height,
+            near: 1.,
+            far: 10.,
+        }.into();
+
+        // let mx_projection = cgmath::perspective(cgmath::Deg(45f32), aspect_ratio, 1.0, 10.0);
         let mx_view = cgmath::Matrix4::look_at(
             cgmath::Point3::new(1.5f32, -5.0, 3.0),
             cgmath::Point3::new(0f32, 0.0, 0.0),
@@ -130,7 +145,7 @@ impl BoxRenderer {
             push_constant_ranges: Borrowed(&[]),
         });
 
-        let mx_total = Self::generate_matrix(width as f32 / height as f32);
+        let mx_total = Self::generate_matrix(width as f32, height as f32);
         let mx_ref: &[f32; 16] = mx_total.as_ref();
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
@@ -211,7 +226,7 @@ impl BoxRenderer {
     }
 
     pub fn resize(&mut self, width: u32, height: u32, _device: &wgpu::Device, queue: &wgpu::Queue) {
-        let mx_total = Self::generate_matrix(width as f32 / height as f32);
+        let mx_total = Self::generate_matrix(width as f32, height as f32);
         let mx_ref: &[f32; 16] = mx_total.as_ref();
         queue.write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(mx_ref));
     }

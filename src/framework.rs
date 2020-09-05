@@ -65,6 +65,7 @@ struct Setup {
     event_loop: EventLoop<()>,
     instance: wgpu::Instance,
     size: winit::dpi::PhysicalSize<u32>,
+    scale_factor: f64,
     surface: wgpu::Surface,
     adapter: wgpu::Adapter,
     device: wgpu::Device,
@@ -96,10 +97,11 @@ async fn setup<E: Example>(title: &str) -> Setup {
     log::info!("Initializing the surface...");
 
     let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
-    let (size, surface) = unsafe {
+    let (size, scale_factor, surface) = unsafe {
         let size = window.inner_size();
+        let scale = window.scale_factor();
         let surface = instance.create_surface(&window);
-        (size, surface)
+        (size, scale, surface)
     };
 
     let adapter = instance
@@ -139,6 +141,7 @@ async fn setup<E: Example>(title: &str) -> Setup {
         event_loop,
         instance,
         size,
+        scale_factor,
         surface,
         adapter,
         device,
@@ -152,6 +155,7 @@ fn start<E: Example>(
         event_loop,
         instance,
         size,
+        mut scale_factor,
         surface,
         adapter,
         device,
@@ -252,6 +256,17 @@ fn start<E: Example>(
                 log::info!("Resizing to {:?}", size);
                 sc_desc.width = size.width;
                 sc_desc.height = size.height;
+                example.resize(&sc_desc, &device, &queue);
+                swap_chain = device.create_swap_chain(&surface, &sc_desc);
+            }
+            event::Event::WindowEvent {
+                event: WindowEvent::ScaleFactorChanged { scale_factor: new_scale_factor, new_inner_size },
+                ..
+            } => {
+                log::info!("Resizing to {:?} (factor {})", size, new_scale_factor);
+                sc_desc.width = new_inner_size.width;
+                sc_desc.height = new_inner_size.height;
+                scale_factor = new_scale_factor;
                 example.resize(&sc_desc, &device, &queue);
                 swap_chain = device.create_swap_chain(&surface, &sc_desc);
             }
